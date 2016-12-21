@@ -1,0 +1,13 @@
+[package]
+name = "smbc"
+version = "0.1.0"
+authors = ["Konstantin Gribov <grossws@gmail.com>"]
+
+repository = "https://github.com/smbc-rs/smbc"
+license = "GPL-3.0+"
+keywords = ["smbclient", "samba", "cifs"]
+
+[dependencies]
+libc = "^0.2.18"
+log = "^0.3.6"
+smbclient-sys = "^0.1.0"
