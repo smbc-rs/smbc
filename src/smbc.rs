@@ -28,12 +28,15 @@ use std::ptr;
 use std::borrow::Cow;
 use std::io::{Read, Write, Seek, SeekFrom};
 
-use libc::{self, c_char, c_int, c_void};
+use libc::{self, c_char, c_int, c_void, mode_t, off_t};
 
-use smblient_sys::*;
+use smbclient_sys::*;
 use util::*;
 use result::Result;
 // 1}}}
+
+const SMBC_FALSE: smbc_bool = 0;
+const SMBC_TRUE: smbc_bool = 1;
 
 // types {{{1
 // {{{2
@@ -163,7 +166,7 @@ impl<'a> SmbClient<'a> {
     }
 
     /// Auth wrapper passed to `SMBCCTX` to authenticate requests to SMB servers.
-    unsafe extern "C" fn auth_wrapper<F: 'a>(ctx: *mut SMBCCTX,
+    extern "C" fn auth_wrapper<F: 'a>(ctx: *mut SMBCCTX,
                                              srv: *const c_char,
                                              shr: *const c_char,
                                              wg: *mut c_char,
@@ -174,21 +177,23 @@ impl<'a> SmbClient<'a> {
                                              pwlen: c_int)
                                              -> ()
         where F: for<'b> Fn(&'b str, &'b str) -> (Cow<'a, str>, Cow<'a, str>, Cow<'a, str>) {
-        let srv = cstr(srv);
-        let shr = cstr(shr);
-        trace!(target: "smbc", "authenticating on {}\\{}", &srv, &shr);
+        unsafe {
+            let srv = cstr(srv);
+            let shr = cstr(shr);
+            trace!(target: "smbc", "authenticating on {}\\{}", &srv, &shr);
 
-        let auth: &'a F = mem::transmute(smbc_getOptionUserData(ctx) as *const c_void);
-        let auth = panic::AssertUnwindSafe(auth);
-        let r = panic::catch_unwind(|| {
-            trace!(target: "smbc", "auth with {:?}\\{:?}", srv, shr);
-            auth(&srv, &shr)
-        });
-        let (workgroup, username, password) = r.unwrap_or(DEF_CRED);
-        trace!(target: "smbc", "cred: {}\\{} {}", &workgroup, &username, &password);
-        write_to_cstr(wg as *mut u8, wglen as usize, &workgroup);
-        write_to_cstr(un as *mut u8, unlen as usize, &username);
-        write_to_cstr(pw as *mut u8, pwlen as usize, &password);
+            let auth: &'a F = mem::transmute(smbc_getOptionUserData(ctx) as *const c_void);
+            let auth = panic::AssertUnwindSafe(auth);
+            let r = panic::catch_unwind(|| {
+                trace!(target: "smbc", "auth with {:?}\\{:?}", srv, shr);
+                auth(&srv, &shr)
+            });
+            let (workgroup, username, password) = r.unwrap_or(DEF_CRED);
+            trace!(target: "smbc", "cred: {}\\{} {}", &workgroup, &username, &password);
+            write_to_cstr(wg as *mut u8, wglen as usize, &workgroup);
+            write_to_cstr(un as *mut u8, unlen as usize, &username);
+            write_to_cstr(pw as *mut u8, pwlen as usize, &password);
+        }
         ()
     }
 
@@ -425,7 +430,7 @@ impl<'a, 'b> Read for SmbFile<'a, 'b> {
             read_fn(self.smbc.ctx,
                     self.fd,
                     buf.as_mut_ptr() as *mut c_void,
-                    buf.len())
+                    buf.len() as _)
         }));
         Ok(bytes_read as usize)
     }
@@ -440,7 +445,7 @@ impl<'a, 'b> Write for SmbFile<'a, 'b> {
             write_fn(self.smbc.ctx,
                      self.fd,
                      buf.as_ptr() as *const c_void,
-                     buf.len())
+                     buf.len() as _)
         }));
         Ok(bytes_wrote as usize)
     }

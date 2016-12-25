@@ -30,11 +30,10 @@
 //! # fn main() {}
 //! ```
 
-//#![warn(missing_docs)]
-
 #[macro_use]
 extern crate log;
 extern crate libc;
+extern crate smbclient_sys;
 
 #[macro_use]
 mod util;
