@@ -1,5 +1,8 @@
 # smbc -- `libsmbclient` wrapper
 
+[![Crates.io](https://img.shields.io/crates/v/smbc.svg)](https://crates.io/crates/smbc)
+[![Crates.io](https://img.shields.io/crates/l/smbc.svg)](https://crates.io/crates/smbc)
+
 ## About
 
 `smbc` is a type-safe wrapper library for `libsmbclient` from [Samba][samba] project.
