@@ -4,6 +4,7 @@
 [![Build Status](https://travis-ci.org/smbc-rs/smbc.svg?branch=master)](https://travis-ci.org/smbc-rs/smbc)
 [![Crates.io](https://img.shields.io/crates/l/smbc.svg)](https://crates.io/crates/smbc)
 [![Docs](https://docs.rs/smbc/badge.svg)](https://docs.rs/smbc)
+[![Gitter](https://img.shields.io/gitter/room/smbc-rs/general.svg)](https://gitter.im/smbc-rs/general)
 
 ## About
 
