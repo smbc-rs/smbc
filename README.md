@@ -15,3 +15,4 @@ It can be found at [COPYING](COPYING) or at [GNU][gpl] site.
 
 [gpl]: https://www.gnu.org/licenses/gpl.txt
 [samba]: https://www.samba.org
+[smbclient-sys]: https://crates.io/crates/smbclient-sys
