@@ -1,6 +1,7 @@
 # smbc -- `libsmbclient` wrapper
 
 [![Crates.io](https://img.shields.io/crates/v/smbc.svg)](https://crates.io/crates/smbc)
+[![Build Status](https://travis-ci.org/smbc-rs/smbc.svg?branch=master)](https://travis-ci.org/smbc-rs/smbc)
 [![Crates.io](https://img.shields.io/crates/l/smbc.svg)](https://crates.io/crates/smbc)
 
 ## About
