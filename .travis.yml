@@ -18,5 +18,5 @@ env:
 addons:
   apt:
     packages:
-    - libsmbclient
+    - libsmbclient-dev
     - pkg-config
