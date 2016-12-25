@@ -11,7 +11,12 @@ matrix:
   allow_failures:
   - rust: nightly
 
+env:
+  global:
+  - PKG_CONFIG_PATH="/usr/lib/*/pkgconfig/"
+
 addons:
   apt:
     packages:
     - libsmbclient
+    - pkg-config
