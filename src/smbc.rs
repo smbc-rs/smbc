@@ -20,9 +20,11 @@
 
 // imports {{{1
 use std::default::Default;
+use std::ffi::CStr;
 use std::io;
 use std::mem;
 use std::panic;
+use std::path::PathBuf;
 use std::ptr;
 
 use std::borrow::Cow;
@@ -125,6 +127,82 @@ pub struct SmbFile<'a: 'b, 'b> {
     fd: *mut SMBCFILE,
 }
 // 1}}}
+
+pub struct SmbDirectory<'a: 'b, 'b> {
+    smbc: &'b SmbClient<'a>,
+    fd: *mut SMBCFILE,
+}
+
+#[derive(Debug)]
+pub struct DirEntry {
+    pub path: PathBuf,
+    pub name: String,
+    pub comment: String,
+    pub file_type: SmbcType,
+}
+
+#[derive(Debug)]
+pub enum SmbcType {
+    Workgroup, 
+    Server, 
+    FileShare, 
+    PrinterShare, 
+    CommsShare, 
+    IpcShare, 
+    Dir, 
+    File, 
+    Link,
+    Unknown,
+}
+
+impl From<u32> for SmbcType {
+ fn from(i: u32) -> Self {
+        match i {
+            1 => SmbcType::Workgroup,
+            2 => SmbcType::Server,
+            3 => SmbcType::FileShare,
+            4 => SmbcType::PrinterShare,
+            5 => SmbcType::CommsShare,
+            6 => SmbcType::IpcShare,
+            7 => SmbcType::Dir,
+            8 => SmbcType::File,
+            9 => SmbcType::Link,
+            _ => SmbcType::Unknown,
+        }
+    }
+}
+
+impl<'a, 'b> Iterator for SmbDirectory<'a, 'b> {
+    type Item = Result<DirEntry>;
+    fn next(&mut self) -> Option<Result<DirEntry>> {
+        unsafe {
+            let readdir_fn = smbc_getFunctionReaddir(self.smbc.ctx).unwrap();
+            let next_entry = readdir_fn(self.smbc.ctx, self.fd);
+            /*
+                @return  A pointer to a smbc_dirent structure, or NULL if an
+                error occurs or end-of-directory is reached:
+                - EBADF Invalid directory handle
+                - EINVAL smbc_init() failed or has not been called
+
+            */
+            // TODO: How do I check for an error occuring here?
+            if next_entry.is_null(){
+                // End of stream reached or error
+                return None;
+            }
+            let file_name = CStr::from_ptr((*next_entry).name.as_ptr());
+            let comment = CStr::from_ptr((*next_entry).comment);
+            let file_type = SmbcType::from((*next_entry).smbc_type);
+            return Some(Ok(DirEntry {
+                path: PathBuf::from(file_name.to_string_lossy().into_owned()),
+                name: file_name.to_string_lossy().into_owned(),
+                comment: comment.to_string_lossy().into_owned(),
+                file_type: file_type,
+            }));
+        }
+    }
+}
+
 
 /// Default (dummy) credential `WORKGROUP\guest` with empty password
 const DEF_CRED: (Cow<'static, str>, Cow<'static, str>, Cow<'static, str>) = (Cow::Borrowed("WORKGROUP"), Cow::Borrowed("guest"), Cow::Borrowed(""));
@@ -231,6 +309,23 @@ impl<'a> SmbClient<'a> {
     /// Alias for [`open_ro(..)`](struct.SmbClient.html#method.open_ro).
     pub fn open<'b, P: AsRef<str>>(&'b self, path: P) -> Result<SmbFile<'a, 'b>> {
         self.open_ro(path)
+    }
+
+    /// Open a directory used to obtain directory entries.
+    pub fn opendir<'b, P: AsRef<str>>(&'b self, path: P) -> Result<SmbDirectory<'a, 'b>> {
+        let path = try!(cstring(path));
+        unsafe {
+            let open_fn = try_ufn!(smbc_getFunctionOpendir <- self);
+            let fd = try!(result_from_ptr_mut(open_fn(self.ctx, path.as_ptr())));
+
+            if (fd as i64) < 0 {
+                trace!(target: "smbc", "neg fd");
+            }
+            Ok(SmbDirectory {
+                smbc: &self,
+                fd: fd,
+            })
+        }
     }
 
     /// Open write-only [`SmbFile`](struct.SmbFile.html) defined by SMB `path`.
@@ -482,4 +577,13 @@ impl<'a, 'b> Drop for SmbFile<'a, 'b> {
 } // }}}
 // 1}}}
 
+impl<'a, 'b> Drop for SmbDirectory<'a, 'b> {
+    // {{{2
+    fn drop(&mut self) {
+        trace!(target: "smbc", "closing directory");
+        unsafe {
+            smbc_getFunctionClosedir(self.smbc.ctx).map(|f| f(self.smbc.ctx, self.fd));
+        }
+    }
+} 
 // vim: fen:fdm=marker:fdl=1:
