@@ -28,7 +28,6 @@ pub type Result<T> = result::Result<T, Error>;
 pub enum Error {
     NewContext(io::Error),
     InitContext(io::Error),
-    AuthCallbackPaniced(Box<error::Error>),
     NulInPath(ffi::NulError),
     Io(io::Error),
 }
@@ -40,7 +39,6 @@ impl fmt::Display for Error {
             Error::InitContext(ref err) => write!(f, "Init context error: {}", err),
             Error::Io(ref err) => write!(f, "IO error: {}", err),
             Error::NulInPath(ref err) => write!(f, "NUL in path: {}", err),
-            Error::AuthCallbackPaniced(ref err) => write!(f, "Auth callback paniced last time: {}", err)
         }
     }
 }
@@ -52,7 +50,6 @@ impl error::Error for Error {
             Error::InitContext(ref err) => err.description(),
             Error::Io(ref err) => err.description(),
             Error::NulInPath(ref err) => err.description(),
-            Error::AuthCallbackPaniced(ref _err) => "panic in auth callback",
         }
     }
 
@@ -62,7 +59,6 @@ impl error::Error for Error {
             Error::InitContext(ref err) => Some(err),
             Error::Io(ref err) => Some(err),
             Error::NulInPath(ref err) => Some(err),
-            Error::AuthCallbackPaniced(ref err) => Some(err.as_ref()),
         }
     }
 }
