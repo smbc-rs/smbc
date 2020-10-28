@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with smbc. If not, see <http://www.gnu.org/licenses/>.
 
-use libc::{self, c_char, c_int};
+use libc::{c_char, c_int};
 
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
