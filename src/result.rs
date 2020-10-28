@@ -44,16 +44,8 @@ impl fmt::Display for Error {
 }
 
 impl error::Error for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::NewContext(ref err) => err.description(),
-            Error::InitContext(ref err) => err.description(),
-            Error::Io(ref err) => err.description(),
-            Error::NulInPath(ref err) => err.description(),
-        }
-    }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
             Error::NewContext(ref err) => Some(err),
             Error::InitContext(ref err) => Some(err),
