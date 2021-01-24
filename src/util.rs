@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with smbc. If not, see <http://www.gnu.org/licenses/>.
 
-use libc::{self, c_char, c_int};
+use libc::{c_char, c_int};
 
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
@@ -27,9 +27,9 @@ use result::*;
 
 /// try! get smbc function or return io::Error(EINVAL)
 macro_rules! try_ufn {
-    ($e:ident <- $s:expr) => (try!(unsafe {
+    ($e:ident <- $s:expr) => (unsafe {
         $e($s.ctx).ok_or($crate::std::io::Error::from_raw_os_error(libc::EINVAL as i32))
-    }))
+    }?)
 }
 
 #[inline(always)]
@@ -49,7 +49,7 @@ pub unsafe fn cstr<'a, T>(p: *const T) -> Cow<'a, str> {
 }
 
 pub fn cstring<P: AsRef<str>>(p: P) -> Result<CString> {
-    Ok(try!(CString::new(p.as_ref())))
+    Ok(CString::new(p.as_ref())?)
 }
 
 pub unsafe fn write_to_cstr(dest: *mut u8, len: usize, src: &str) {
