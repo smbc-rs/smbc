@@ -28,13 +28,21 @@ use result::*;
 #[inline(always)]
 /// Ok(ptr) for non-null ptr or Err(last_os_error) otherwise
 pub fn result_from_ptr_mut<T>(ptr: *mut T) -> io::Result<*mut T> {
-    if ptr.is_null() { Err(io::Error::last_os_error()) } else { Ok(ptr) }
+    if ptr.is_null() {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(ptr)
+    }
 }
 
 #[inline(always)]
 /// Ok(ptr) for non-null ptr or Err(last_os_error) otherwise
 pub fn result_from_ptr<T>(ptr: *const T) -> io::Result<*const T> {
-    if ptr.is_null() { Err(io::Error::last_os_error()) } else { Ok(ptr) }
+    if ptr.is_null() {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(ptr)
+    }
 }
 
 pub unsafe fn cstr<'a, T>(p: *const T) -> Cow<'a, str> {
@@ -76,6 +84,9 @@ pub fn to_result_with_errno<T: Eq + From<i8>>(t: T, errno: c_int) -> io::Result<
 
 #[inline(always)]
 fn to_result_with_error<T: Eq + From<i8>>(t: T, err: io::Error) -> io::Result<T> {
-    if t == T::from(-1) { Err(err) } else { Ok(t) }
+    if t == T::from(-1) {
+        Err(err)
+    } else {
+        Ok(t)
+    }
 }
-

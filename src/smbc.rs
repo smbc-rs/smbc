@@ -26,13 +26,13 @@ use std::panic;
 use std::ptr;
 
 use std::borrow::Cow;
-use std::io::{Read, Write, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 
 use libc::{self, c_char, c_int, c_void, mode_t, off_t};
 
+use result::Result;
 use smbclient_sys::*;
 use util::*;
-use result::Result;
 // 1}}}
 
 const SMBC_FALSE: smbc_bool = 0;
@@ -127,7 +127,11 @@ pub struct SmbFile<'a: 'b, 'b> {
 // 1}}}
 
 /// Default (dummy) credential `WORKGROUP\guest` with empty password
-const DEF_CRED: (Cow<'static, str>, Cow<'static, str>, Cow<'static, str>) = (Cow::Borrowed("WORKGROUP"), Cow::Borrowed("guest"), Cow::Borrowed(""));
+const DEF_CRED: (Cow<'static, str>, Cow<'static, str>, Cow<'static, str>) = (
+    Cow::Borrowed("WORKGROUP"),
+    Cow::Borrowed("guest"),
+    Cow::Borrowed(""),
+);
 
 // SmbClient {{{1
 impl<'a> SmbClient<'a> {
@@ -141,7 +145,9 @@ impl<'a> SmbClient<'a> {
     ///
     /// Should *return* tuple `(workgroup, username, password)` as a result.
     pub fn new<F>(auth_fn: &'a F) -> Result<SmbClient<'a>>
-        where F: for<'b> Fn(&'b str, &'b str) -> (Cow<'a, str>, Cow<'a, str>, Cow<'a, str>) {
+    where
+        F: for<'b> Fn(&'b str, &'b str) -> (Cow<'a, str>, Cow<'a, str>, Cow<'a, str>),
+    {
         let mut smbc = SmbClient {
             ctx: ptr::null_mut(),
             auth_fn,
@@ -166,17 +172,20 @@ impl<'a> SmbClient<'a> {
     }
 
     /// Auth wrapper passed to `SMBCCTX` to authenticate requests to SMB servers.
-    extern "C" fn auth_wrapper<F: 'a>(ctx: *mut SMBCCTX,
-                                      srv: *const c_char,
-                                      shr: *const c_char,
-                                      wg: *mut c_char,
-                                      wglen: c_int,
-                                      un: *mut c_char,
-                                      unlen: c_int,
-                                      pw: *mut c_char,
-                                      pwlen: c_int)
-                                      -> ()
-        where F: for<'b> Fn(&'b str, &'b str) -> (Cow<'a, str>, Cow<'a, str>, Cow<'a, str>) {
+    extern "C" fn auth_wrapper<F: 'a>(
+        ctx: *mut SMBCCTX,
+        srv: *const c_char,
+        shr: *const c_char,
+        wg: *mut c_char,
+        wglen: c_int,
+        un: *mut c_char,
+        unlen: c_int,
+        pw: *mut c_char,
+        pwlen: c_int,
+    ) -> ()
+    where
+        F: for<'b> Fn(&'b str, &'b str) -> (Cow<'a, str>, Cow<'a, str>, Cow<'a, str>),
+    {
         unsafe {
             let srv = cstr(srv);
             let shr = cstr(shr);
@@ -200,10 +209,11 @@ impl<'a> SmbClient<'a> {
     /// Opens [`SmbFile`](struct.SmbFile.html) defined by SMB `path` with `options`.
     ///
     /// See [OpenOptions](struct.OpenOptions.html).
-    pub fn open_with<'b, P: AsRef<str>>(&'b self,
-                                        path: P,
-                                        options: OpenOptions)
-                                        -> Result<SmbFile<'a, 'b>> {
+    pub fn open_with<'b, P: AsRef<str>>(
+        &'b self,
+        path: P,
+        options: OpenOptions,
+    ) -> Result<SmbFile<'a, 'b>> {
         trace!(target: "smbc", "open_with {:?}", options);
 
         let open_fn = self.get_fn(smbc_getFunctionOpen)?;
@@ -211,17 +221,16 @@ impl<'a> SmbClient<'a> {
         let path = cstring(path)?;
         trace!(target: "smbc", "opening {:?}", path);
 
-        let fd = result_from_ptr_mut(open_fn(self.ctx,
-                                             path.as_ptr(),
-                                             options.to_flags()?,
-                                             options.mode))?;
+        let fd = result_from_ptr_mut(open_fn(
+            self.ctx,
+            path.as_ptr(),
+            options.to_flags()?,
+            options.mode,
+        ))?;
         if (fd as i64) < 0 {
             trace!(target: "smbc", "neg fd");
         }
-        Ok(SmbFile {
-            smbc: &self,
-            fd,
-        })
+        Ok(SmbFile { smbc: &self, fd })
     }
 
     /// Open read-only [`SmbFile`](struct.SmbFile.html) defined by SMB `path`.
@@ -255,7 +264,14 @@ impl<'a> SmbClient<'a> {
     ///
     /// See [`open_with(..)`](struct.SmbClient.html#method.open_with).
     pub fn open_wo<'b, P: AsRef<str>>(&'b self, path: P) -> Result<SmbFile<'a, 'b>> {
-        self.open_with(path, OpenOptions::default().read(false).write(true).create(true).truncate(true))
+        self.open_with(
+            path,
+            OpenOptions::default()
+                .read(false)
+                .write(true)
+                .create(true)
+                .truncate(true),
+        )
     }
 
     /// Open read-write [`SmbFile`](struct.SmbFile.html) defined by SMB `path`.
@@ -264,7 +280,10 @@ impl<'a> SmbClient<'a> {
     ///
     /// See [`open_with(..)`](struct.SmbClient.html#method.open_with).
     pub fn open_rw<'b, P: AsRef<str>>(&'b self, path: P) -> Result<SmbFile<'a, 'b>> {
-        self.open_with(path, OpenOptions::default().read(true).write(true).create(true))
+        self.open_with(
+            path,
+            OpenOptions::default().read(true).write(true).create(true),
+        )
     }
 
     #[doc(hidden)]
@@ -297,7 +316,10 @@ impl<'a> SmbClient<'a> {
         Ok(())
     }
 
-    fn get_fn<T>(&self, get_func: unsafe extern "C" fn(*mut SMBCCTX) -> Option<T>) -> io::Result<T> {
+    fn get_fn<T>(
+        &self,
+        get_func: unsafe extern "C" fn(*mut SMBCCTX) -> Option<T>,
+    ) -> io::Result<T> {
         unsafe { get_func(self.ctx).ok_or(io::Error::from_raw_os_error(libc::EINVAL as i32)) }
     }
 } // 2}}}
@@ -312,7 +334,7 @@ impl<'a> Drop for SmbClient<'a> {
         }
     }
 } // 2}}}
-// 1}}}
+  // 1}}}
 
 // OpenOptions {{{1
 /// Describes options for opening file:
@@ -393,15 +415,14 @@ impl OpenOptions {
     fn to_flags(&self) -> Result<c_int> {
         let base_mode = match (self.read, self.write) {
             // defaults to read only
-            (false, false) |
-            (true, false) => libc::O_RDONLY,
+            (false, false) | (true, false) => libc::O_RDONLY,
             (false, true) => libc::O_WRONLY,
             (true, true) => libc::O_RDWR,
         };
         Ok(base_mode | self.flags)
     }
 } // }}}
-// 1}}}
+  // 1}}}
 
 impl Default for OpenOptions {
     /// Default [`OpenOptions`](struct.OpenOptions.html) is
@@ -427,12 +448,12 @@ impl<'a, 'b> Read for SmbFile<'a, 'b> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         trace!(target: "smbc", "reading file to buf [{:?};{}]", buf.as_ptr(), buf.len());
         let read_fn = self.smbc.get_fn(smbc_getFunctionRead)?;
-        let bytes_read = to_result_with_le(
-            read_fn(self.smbc.ctx,
-                    self.fd,
-                    buf.as_mut_ptr() as *mut c_void,
-                    buf.len() as _)
-        )?;
+        let bytes_read = to_result_with_le(read_fn(
+            self.smbc.ctx,
+            self.fd,
+            buf.as_mut_ptr() as *mut c_void,
+            buf.len() as _,
+        ))?;
         Ok(bytes_read as usize)
     }
 } // }}}
@@ -442,12 +463,12 @@ impl<'a, 'b> Write for SmbFile<'a, 'b> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         trace!(target: "smbc", "writing buf [{:?};{}] to file", buf.as_ptr(), buf.len());
         let write_fn = self.smbc.get_fn(smbc_getFunctionWrite)?;
-        let bytes_wrote = to_result_with_le(
-            write_fn(self.smbc.ctx,
-                     self.fd,
-                     buf.as_ptr() as *const c_void,
-                     buf.len() as _)
-        )?;
+        let bytes_wrote = to_result_with_le(write_fn(
+            self.smbc.ctx,
+            self.fd,
+            buf.as_ptr() as *const c_void,
+            buf.len() as _,
+        ))?;
         Ok(bytes_wrote as usize)
     }
 
@@ -467,7 +488,8 @@ impl<'a, 'b> Seek for SmbFile<'a, 'b> {
             SeekFrom::End(p) => (libc::SEEK_END, p as off_t),
             SeekFrom::Current(p) => (libc::SEEK_CUR, p as off_t),
         };
-        let res = to_result_with_errno(lseek_fn(self.smbc.ctx, self.fd, off, whence), libc::EINVAL)?;
+        let res = lseek_fn(self.smbc.ctx, self.fd, off, whence);
+        let res = to_result_with_errno(res, libc::EINVAL)?;
         Ok(res as u64)
     }
 } // }}}
@@ -481,6 +503,6 @@ impl<'a, 'b> Drop for SmbFile<'a, 'b> {
         }
     }
 } // }}}
-// 1}}}
+  // 1}}}
 
 // vim: fen:fdm=marker:fdl=1:
