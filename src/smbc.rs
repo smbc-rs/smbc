@@ -70,7 +70,7 @@ const SMBC_TRUE: smbc_bool = 1;
 ///     let auth = move |host: &str, share: &str| {
 ///         (Cow::Borrowed("WORKGROUP"), Cow::Borrowed("test"), Cow::Borrowed(password_ref))
 ///     };
-///     let client = try!(smbc::SmbClient::new(&auth));
+///     let client = smbc::SmbClient::new(&auth)?;
 ///
 /// #   Ok(())
 /// # }
@@ -103,7 +103,7 @@ pub struct SmbClient<'a> {
 /// #
 /// fn get_content(file: &mut smbc::SmbFile) -> smbc::Result<String> {
 ///     let mut buffer = String::new();
-///     try!(file.read_to_string(&mut buffer));
+///     file.read_to_string(&mut buffer)?;
 ///     Ok(buffer)
 /// }
 ///
@@ -113,8 +113,8 @@ pub struct SmbClient<'a> {
 /// # let auth = move |host: &str, share: &str| {
 /// #    (Cow::Borrowed("WORKGROUP"), Cow::Borrowed("test"), Cow::Borrowed(password))
 /// # };
-///     let client = try!(smbc::SmbClient::new(&auth));
-///     let mut file = try!(client.open("smb://127.0.0.1/share/path/to/file"));
+///     let client = smbc::SmbClient::new(&auth)?;
+///     let mut file = client.open("smb://127.0.0.1/share/path/to/file")?;
 ///     println!("dumped file:\n\n{}", try!(get_content(&mut file)));
 ///     Ok(())
 /// }
@@ -144,7 +144,7 @@ impl<'a> SmbClient<'a> {
         where F: for<'b> Fn(&'b str, &'b str) -> (Cow<'a, str>, Cow<'a, str>, Cow<'a, str>) {
         let mut smbc = SmbClient {
             ctx: ptr::null_mut(),
-            auth_fn: auth_fn,
+            auth_fn,
         };
 
         unsafe {
@@ -167,15 +167,15 @@ impl<'a> SmbClient<'a> {
 
     /// Auth wrapper passed to `SMBCCTX` to authenticate requests to SMB servers.
     extern "C" fn auth_wrapper<F: 'a>(ctx: *mut SMBCCTX,
-                                             srv: *const c_char,
-                                             shr: *const c_char,
-                                             wg: *mut c_char,
-                                             wglen: c_int,
-                                             un: *mut c_char,
-                                             unlen: c_int,
-                                             pw: *mut c_char,
-                                             pwlen: c_int)
-                                             -> ()
+                                      srv: *const c_char,
+                                      shr: *const c_char,
+                                      wg: *mut c_char,
+                                      wglen: c_int,
+                                      un: *mut c_char,
+                                      unlen: c_int,
+                                      pw: *mut c_char,
+                                      pwlen: c_int)
+                                      -> ()
         where F: for<'b> Fn(&'b str, &'b str) -> (Cow<'a, str>, Cow<'a, str>, Cow<'a, str>) {
         unsafe {
             let srv = cstr(srv);
@@ -209,18 +209,18 @@ impl<'a> SmbClient<'a> {
         let open_fn = try_ufn!(smbc_getFunctionOpen <- self);
 
         let path = cstring(path)?;
-        trace!(target: "smbc", "opening {:?} with {:?}", path, open_fn);
+        trace!(target: "smbc", "opening {:?}", path);
 
         let fd = result_from_ptr_mut(open_fn(self.ctx,
-                                                  path.as_ptr(),
-                                                  options.to_flags()?,
-                                                  options.mode))?;
+                                             path.as_ptr(),
+                                             options.to_flags()?,
+                                             options.mode))?;
         if (fd as i64) < 0 {
             trace!(target: "smbc", "neg fd");
         }
         Ok(SmbFile {
             smbc: &self,
-            fd: fd,
+            fd,
         })
     }
 

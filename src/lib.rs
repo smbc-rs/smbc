@@ -23,12 +23,6 @@
 //! Primary entrypoint is [`SmbClient`](struct.SmbClient.html) struct.
 //!
 //! Files are represented by [`SmbFile`](struct.SmbFile.html).
-//!
-//! Basic example:
-//! ```rust
-//! fn load
-//! # fn main() {}
-//! ```
 
 #[macro_use]
 extern crate log;
