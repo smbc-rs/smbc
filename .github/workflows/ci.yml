@@ -42,7 +42,8 @@ jobs:
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
-          command: fmt --all -- --check
+          command: fmt
+          args: --all -- --check
 
   clippy:
     runs-on: ubuntu-latest
