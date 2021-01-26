@@ -70,7 +70,8 @@ jobs:
       - name: Run cargo build
         uses: actions-rs/cargo@v1
         with:
-          command: build --verbose
+          command: build
+          args: --verbose
 
   build-macos:
     name: Build on MacOS with Rust ${{ matrix.rust }}
@@ -94,4 +95,5 @@ jobs:
       - name: Build
         uses: actions-rs/cargo@v1
         with:
-          command: build --verbose
+          command: build
+          args: --verbose
