@@ -206,7 +206,7 @@ impl<'a> SmbClient<'a> {
                                         -> Result<SmbFile<'a, 'b>> {
         trace!(target: "smbc", "open_with {:?}", options);
 
-        let open_fn = try_ufn!(smbc_getFunctionOpen <- self);
+        let open_fn = self.get_fn(smbc_getFunctionOpen)?;
 
         let path = cstring(path)?;
         trace!(target: "smbc", "opening {:?}", path);
@@ -270,14 +270,14 @@ impl<'a> SmbClient<'a> {
     #[doc(hidden)]
     /// Get metadata for file at `path`
     pub fn metadata<P: AsRef<str>>(&self, path: P) -> Result<()> {
-        let _stat_fn = try_ufn!(smbc_getFunctionStat <- self);
+        let _stat_fn = self.get_fn(smbc_getFunctionStat)?;
         let _path = cstring(path)?;
         unimplemented!();
     }
 
     /// Create new directory at SMB `path`
     pub fn create_dir<P: AsRef<str>>(&self, path: P) -> Result<()> {
-        let mkdir_fn = try_ufn!(smbc_getFunctionMkdir <- self);
+        let mkdir_fn = self.get_fn(smbc_getFunctionMkdir)?;
         let path = cstring(path)?;
         to_result_with_le(mkdir_fn(self.ctx, path.as_ptr(), 0o755))?;
         Ok(())
@@ -291,10 +291,14 @@ impl<'a> SmbClient<'a> {
     ///
     /// Directory should be empty to delete it.
     pub fn remove_dir<P: AsRef<str>>(&self, path: P) -> Result<()> {
-        let rmdir_fn = try_ufn!(smbc_getFunctionRmdir <- self);
+        let rmdir_fn = self.get_fn(smbc_getFunctionRmdir)?;
         let path = cstring(path)?;
         to_result_with_le(rmdir_fn(self.ctx, path.as_ptr()))?;
         Ok(())
+    }
+
+    fn get_fn<T>(&self, get_func: unsafe extern "C" fn(*mut SMBCCTX) -> Option<T>) -> io::Result<T> {
+        unsafe { get_func(self.ctx).ok_or(io::Error::from_raw_os_error(libc::EINVAL as i32)) }
     }
 } // 2}}}
 
@@ -422,7 +426,7 @@ impl<'a, 'b> Read for SmbFile<'a, 'b> {
     // {{{2
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         trace!(target: "smbc", "reading file to buf [{:?};{}]", buf.as_ptr(), buf.len());
-        let read_fn = try_ufn!(smbc_getFunctionRead <- self.smbc);
+        let read_fn = self.smbc.get_fn(smbc_getFunctionRead)?;
         let bytes_read = to_result_with_le(
             read_fn(self.smbc.ctx,
                     self.fd,
@@ -437,7 +441,7 @@ impl<'a, 'b> Write for SmbFile<'a, 'b> {
     // {{{2
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         trace!(target: "smbc", "writing buf [{:?};{}] to file", buf.as_ptr(), buf.len());
-        let write_fn = try_ufn!(smbc_getFunctionWrite <- self.smbc);
+        let write_fn = self.smbc.get_fn(smbc_getFunctionWrite)?;
         let bytes_wrote = to_result_with_le(
             write_fn(self.smbc.ctx,
                      self.fd,
@@ -457,7 +461,7 @@ impl<'a, 'b> Seek for SmbFile<'a, 'b> {
     // {{{2
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         trace!(target: "smbc", "seeking file {:?}", pos);
-        let lseek_fn = try_ufn!(smbc_getFunctionLseek <- self.smbc);
+        let lseek_fn = self.smbc.get_fn(smbc_getFunctionLseek)?;
         let (whence, off) = match pos {
             SeekFrom::Start(p) => (libc::SEEK_SET, p as off_t),
             SeekFrom::End(p) => (libc::SEEK_END, p as off_t),
@@ -472,8 +476,8 @@ impl<'a, 'b> Drop for SmbFile<'a, 'b> {
     // {{{2
     fn drop(&mut self) {
         trace!(target: "smbc", "closing file");
-        unsafe {
-            smbc_getFunctionClose(self.smbc.ctx).map(|f| f(self.smbc.ctx, self.fd));
+        if let Ok(close_fn) = self.smbc.get_fn(smbc_getFunctionClose) {
+            close_fn(self.smbc.ctx, self.fd);
         }
     }
 } // }}}

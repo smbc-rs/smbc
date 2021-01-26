@@ -25,13 +25,6 @@ use std::slice;
 
 use result::*;
 
-/// try! get smbc function or return io::Error(EINVAL)
-macro_rules! try_ufn {
-    ($e:ident <- $s:expr) => (unsafe {
-        $e($s.ctx).ok_or($crate::std::io::Error::from_raw_os_error(libc::EINVAL as i32))
-    }?)
-}
-
 #[inline(always)]
 /// Ok(ptr) for non-null ptr or Err(last_os_error) otherwise
 pub fn result_from_ptr_mut<T>(ptr: *mut T) -> io::Result<*mut T> {
